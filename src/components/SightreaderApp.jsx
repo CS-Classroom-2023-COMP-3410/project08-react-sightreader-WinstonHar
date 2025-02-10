@@ -1,11 +1,10 @@
-// src/components/SightreaderApp.js
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import ABCJS from 'abcjs';
 import NotationDisplay from './NotationDisplay';
 import Controls from './Controls';
 import Playlist from './Playlist';
 import StatusBar from './StatusBar';
-import useAudioProcessing from '../hooks/useAudioProcessing';
+import useAudioProcessing from './useAudioProcessing';
 
 const DEFAULT_TEMPO = 60;
 const DEFAULT_SCALE = 1.5;
@@ -22,13 +21,17 @@ const SightreaderApp = () => {
   // State for pitch/score display (you might extend this to include detailed score stats)
   const [currentMidiNumber, setCurrentMidiNumber] = useState(0);
   const [expectedMidiNumber, setExpectedMidiNumber] = useState(0);
+  const [selectedDeviceId, setSelectedDeviceId] = useState(null);
+  const [profiles, setProfiles] = useState([{ value: 'default', name: 'Default Profile' }]);
+  const [selectedProfile, setSelectedProfile] = useState('default');
+  const [newProfile, setNewProfile] = useState('');
 
   // Refs for synth and (optionally) the ABCJS timing object
   const synthRef = useRef(null);
   const timerRef = useRef(null);
 
   // Use a custom hook for microphone and pitch processing.
-  const { startMic, stopMic, volume } = useAudioProcessing(setCurrentMidiNumber);
+  const { startMic, stopMic, volume, devices } = useAudioProcessing(setCurrentMidiNumber);
 
   // Compute milliseconds per beat/measure (used to configure synth timing)
   const getMillisecondsPerBeat = (qpm) => 60000 / qpm;
@@ -92,7 +95,7 @@ const SightreaderApp = () => {
     setStatus('Starting in 3…');
     setTimeout(() => {
       // Start mic, synth, and (if needed) the ABCJS timing callbacks.
-      startMic();
+      startMic(selectedDeviceId);
       if (synthRef.current) {
         synthRef.current.start();
       }
@@ -122,13 +125,35 @@ const SightreaderApp = () => {
     }
   };
 
-  // (You might also define callbacks for playlist navigation and score reporting here.)
+  // Handle device change
+  const handleDeviceChange = (event) => {
+    const deviceId = event.target.value;
+    setSelectedDeviceId(deviceId);
+    if (recording) {
+      stopMic();
+      startMic(deviceId);
+    }
+  };
 
-  // Update a note display if you wish (or pass these numbers to child components).
-  useEffect(() => {
-    // For example, you might set expectedMidiNumber based on the current playback event.
-    // In this sample we leave it as-is.
-  }, [currentMidiNumber, expectedMidiNumber]);
+  // Handle profile change
+  const handleProfileChange = (event) => {
+    const profileValue = event.target.value;
+    if (profileValue === 'new') {
+      setNewProfile('');
+    } else {
+      setSelectedProfile(profileValue);
+    }
+  };
+
+  // Handle new profile creation
+  const handleCreateProfile = (event) => {
+    if (event.key === 'Enter' && newProfile.trim()) {
+      const newProfileObj = { value: newProfile.trim(), name: newProfile.trim() };
+      setProfiles([...profiles, newProfileObj]);
+      setSelectedProfile(newProfile.trim());
+      setNewProfile('');
+    }
+  };
 
   return (
     <div className="sightreader-app">
@@ -155,6 +180,33 @@ const SightreaderApp = () => {
         Expected: {expectedMidiNumber} | Current: {currentMidiNumber}
       </div>
       <div className="volume-display">Volume: {Math.round(volume * 100)}</div>
+      {/* Dropdown to select microphone device */}
+      <select onChange={handleDeviceChange} value={selectedDeviceId || ''}>
+        <option value="">Select Microphone</option>
+        {devices.map(device => (
+          <option key={device.deviceId} value={device.deviceId}>
+            {device.label || `Microphone ${device.deviceId}`}
+          </option>
+        ))}
+      </select>
+      {/* Dropdown to select profile */}
+      <select onChange={handleProfileChange} value={selectedProfile}>
+        {profiles.map(profile => (
+          <option key={profile.value} value={profile.value}>
+            {profile.name}
+          </option>
+        ))}
+        <option value="new">Create New Profile</option>
+      </select>
+      {selectedProfile === 'new' && (
+        <input
+          type="text"
+          value={newProfile}
+          onChange={(e) => setNewProfile(e.target.value)}
+          onKeyDown={handleCreateProfile}
+          placeholder="Enter name and press enter"
+        />
+      )}
     </div>
   );
 };
