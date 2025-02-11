@@ -305,7 +305,7 @@ function milliseconds_per_measure(qpm, tune) {
 
 // https://newt.phys.unsw.edu.au/jw/notes.html
 function midi_number_to_octave(number) {
-    octave = parseInt(number / 12) - 1;
+    let octave = parseInt(number / 12) - 1; //SRC
     return octave;
 }
 window.midi_number_to_octave = midi_number_to_octave;
@@ -512,7 +512,7 @@ function update_score_display() {
     var el = $('#' + current_score_display.id);
     reset_score_display_style();
     if (notes_checked_count) {
-        percent = get_score_percent();
+        let percent = get_score_percent(); //SRC
         el.text('' + notes_checked_correct_count + '/' + notes_checked_count + ' = ' + percent + '%');
         if (current_score_stats && current_score_stats.mean_score) {
             if (percent >= current_score_stats.mean_score) {
