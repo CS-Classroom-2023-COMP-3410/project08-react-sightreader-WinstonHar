@@ -20,7 +20,7 @@ const App = ({ title, profiles = [], files = [] }) => {
 
     const loadABC = async (fileName) => {
         try {
-            const response = await fetch(`/music/${fileName}`);
+            const response = await fetch(`${process.env.PUBLIC_URL}/music/${fileName}`);
             if (!response.ok) {
                 throw new Error('Network response was not ok');
             }
