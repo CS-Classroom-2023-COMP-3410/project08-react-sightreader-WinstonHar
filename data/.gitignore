@@ -1,4 +1,2 @@
-# Ignore everything in this directory
-/node_modules/
-# Except this file
-!.gitignore
+node_modules/
+/workspaces/project08-react-sightreader-WinstonHar/sightreader-vite/node_modules
