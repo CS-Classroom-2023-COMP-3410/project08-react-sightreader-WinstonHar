@@ -30,7 +30,6 @@ function SightReader() {
     const currentVolumeRef = useRef(null);
     const midiRef = useRef(null);
     const countdownRef = useRef(null);
-    const COUNTDOWN_LENGTH = 5; // no longer used but kept for legacy purposes
     const loadedFilenameRef = useRef(null);
     const qpmDisplayRef = useRef(null);
     const currentPlaylistPositionRef = useRef(null);
@@ -70,7 +69,6 @@ function SightReader() {
         let timer = null;
         let synth = null;
         let current_event = null;
-        // Remove legacy countdown variable; we'll use a local variable in begin_countdown.
         let source_stream;
 
         // Playlist-related state.
@@ -88,8 +86,8 @@ function SightReader() {
         // For keeping track of note detection.
         let current_midi_number = 0;
         let expected_midi_number = 0;
-        let current_score_stats = null;
         let current_qpm = null;
+        let current_score_stats = null;
 
         // ––––– Helper Functions –––––
         const clamp = (val, min, max) => (val > max ? max : val < min ? min : val);
@@ -139,8 +137,8 @@ function SightReader() {
             if (currentScoreRef.current) {
                 currentScoreRef.current.textContent = notes_checked_count
                     ? `${notes_checked_correct_count}/${notes_checked_count} = ${Math.round(
-                        (notes_checked_correct_count / notes_checked_count) * 100
-                    )}%`
+                          (notes_checked_correct_count / notes_checked_count) * 100
+                      )}%`
                     : '-';
             }
         }
@@ -191,7 +189,7 @@ function SightReader() {
             if (startButtonRef.current) startButtonRef.current.textContent = 'Start';
         }
 
-        // --- Modified Countdown Function ---
+        // --- Modified Countdown Function ---, works most of the time a little glitchy
         function begin_countdown() {
             mark_start_button_as_started();
             recording = true;
@@ -205,9 +203,9 @@ function SightReader() {
                         $(countdownRef.current)
                             .css({ 'font-size': '15em', opacity: 1.0 })
                             .show()
-                            .animate({ opacity: 0 }, 500, 'linear', () => {
+                            .animate({ opacity: 0 }, 1000, 'linear', () => {
                                 countdownVal++;
-                                setTimeout(animateCountdown, 500);
+                                setTimeout(animateCountdown, 1000);
                             });
                     }
                 } else {
@@ -220,7 +218,36 @@ function SightReader() {
         
             animateCountdown();
         }
-        // End of modified countdown – the refresh_countdown function has been removed.
+
+        // ––––– Preprocess ABC Data Function –––––
+        function preprocess_abc_data(data) {
+            const HEADER_KEYS_TO_IGNORE = new Set(['T', 'C', 'Z', 'S', 'N', 'G', 'O', 'H', 'I', 'P', 'W', 'F', 'B']);
+            let headers = [];
+            let notes = [];
+            
+            let lines = data.split('\n');
+            for (let line of lines) {
+                line = line.trim();
+                if (!line || line.startsWith('%')) {
+                    console.debug('Ignoring comment:', line);
+                    continue;
+                }
+                
+                if (line.length >= 2 && line[1] === ':' && /^[A-Za-z]$/.test(line[0])) {
+                    if (HEADER_KEYS_TO_IGNORE.has(line[0].toUpperCase())) {
+                        console.debug('Ignoring header:', line);
+                        continue;
+                    }
+                    console.debug('Keeping header:', line);
+                    headers.push(line);
+                } else {
+                    console.debug('Keeping notes:', line);
+                    notes.push(line);
+                }
+            }
+            
+            return headers.join('\n') + '\n' + notes.join('\n');
+        }
 
         // ––––– ABC and Playlist Loading Functions –––––
         function load_abc(abc_string) {
@@ -270,6 +297,8 @@ function SightReader() {
                         });
                 });
         }
+
+        // Updated load_abc_file to include preprocessing
         function load_abc_file(filename) {
             if (!filename) return;
             if (loadedFilenameRef.current) loadedFilenameRef.current.textContent = '';
@@ -284,8 +313,12 @@ function SightReader() {
                     original_loaded_abc = data;
                     loaded_abc_filename = filename;
                     if (loadedFilenameRef.current) loadedFilenameRef.current.textContent = filename;
-                    if (abcTextareaRef.current) $(abcTextareaRef.current).val(data);
-                    load_abc(data);
+                    
+                    // Preprocess the ABC data before loading
+                    const processedData = preprocess_abc_data(data);
+                    
+                    if (abcTextareaRef.current) $(abcTextareaRef.current).val(processedData);
+                    load_abc(processedData);
                     $(fileSelectRef.current).removeAttr('disabled');
                     report_status('File loaded. Press start to play.');
                     update_start_button();
@@ -297,6 +330,7 @@ function SightReader() {
                 },
             });
         }
+
         function load_playlist_file(filename) {
             $.ajax({
                 url: '/music/' + filename,
