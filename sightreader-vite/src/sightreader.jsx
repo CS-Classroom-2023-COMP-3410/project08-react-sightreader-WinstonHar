@@ -30,7 +30,7 @@ function SightReader() {
     const currentVolumeRef = useRef(null);
     const midiRef = useRef(null);
     const countdownRef = useRef(null);
-    const COUNTDOWN_LENGTH = 5;
+    const COUNTDOWN_LENGTH = 5; // no longer used but kept for legacy purposes
     const loadedFilenameRef = useRef(null);
     const qpmDisplayRef = useRef(null);
     const currentPlaylistPositionRef = useRef(null);
@@ -41,12 +41,10 @@ function SightReader() {
 
     useEffect(() => {
         // --- AudioContext and related setup ---
-        // Create the AudioContext on mount but immediately suspend it.
         let audioContext = new (window.AudioContext || window.webkitAudioContext)();
         audioContext.suspend();
 
         // --- createAudioMeter Implementation ---
-        // This implementation uses a ScriptProcessorNode to calculate volume.
         function createAudioMeter(audioCtx) {
             const processor = audioCtx.createScriptProcessor(512);
             processor.volume = 0;
@@ -58,7 +56,6 @@ function SightReader() {
                 }
                 processor.volume = Math.sqrt(sum / buf.length);
             };
-            // Connecting to destination is optional; here we connect to avoid garbage collection.
             processor.connect(audioCtx.destination);
             return processor;
         }
@@ -73,7 +70,7 @@ function SightReader() {
         let timer = null;
         let synth = null;
         let current_event = null;
-        let countdown = 3;
+        // Remove legacy countdown variable; we'll use a local variable in begin_countdown.
         let source_stream;
 
         // Playlist-related state.
@@ -193,35 +190,37 @@ function SightReader() {
         function mark_start_button_as_stopped() {
             if (startButtonRef.current) startButtonRef.current.textContent = 'Start';
         }
-        // Replace your begin_countdown() and refresh_countdown() functions with these:
 
+        // --- Modified Countdown Function ---
         function begin_countdown() {
             mark_start_button_as_started();
             recording = true;
-            countdown = 1; // start at 1
-            refresh_countdown();
-        }
-
-        function refresh_countdown() {
-            if (countdown <= COUNTDOWN_LENGTH) {
-                // Show the current countdown number
-                if (countdownRef.current) {
-                    countdownRef.current.textContent = countdown;
-                    $(countdownRef.current)
-                        .css({ 'font-size': '15em', opacity: 1.0 })
-                        .show()
-                        .animate({ opacity: 0 }, milliseconds_per_beat(current_qpm), 'swing', () => {
-                            countdown++;  // increment the countdown
-                            refresh_countdown();
-                        });
+            let countdownVal = 1; // start at 1 second
+        
+            function animateCountdown() {
+                if (countdownVal < 6) {
+                    if (countdownRef.current) {
+                        countdownRef.current.style.display = 'block';
+                        countdownRef.current.textContent = countdownVal;
+                        $(countdownRef.current)
+                            .css({ 'font-size': '15em', opacity: 1.0 })
+                            .show()
+                            .animate({ opacity: 0 }, 500, 'linear', () => {
+                                countdownVal++;
+                                setTimeout(animateCountdown, 500);
+                            });
+                    }
+                } else {
+                    if (countdownRef.current) {
+                        countdownRef.current.style.display = 'none';
+                    }
+                    start();
                 }
-            } else {
-                // When done, hide the countdown and start the piece.
-                if (countdownRef.current) $(countdownRef.current).hide();
-                start();
             }
+        
+            animateCountdown();
         }
-
+        // End of modified countdown – the refresh_countdown function has been removed.
 
         // ––––– ABC and Playlist Loading Functions –––––
         function load_abc(abc_string) {
@@ -243,7 +242,6 @@ function SightReader() {
             current_qpm = qpm;
             update_qpm_display();
 
-            // Render the ABC notation into the container.
             tunebook = ABCJS.renderAbc(notationRef.current.id, abc_string, {
                 responsive: 'resize',
                 scale: DEFAULT_SCALE,
@@ -279,7 +277,6 @@ function SightReader() {
                 url: '/music/' + filename,
                 dataType: 'text',
                 success: function (data) {
-                    // Trim and remove BOM if present.
                     data = data.trim();
                     if (data.charCodeAt(0) === 0xFEFF) {
                         data = data.slice(1);
@@ -405,7 +402,6 @@ function SightReader() {
 
         // ––––– Audio and Pitch Handling –––––
         function start_pitch_detector() {
-            // Resume the AudioContext in response to a user gesture.
             audioContext.resume();
             detectPitch = new Pitchfinder.YIN({ sampleRate: audioContext.sampleRate });
             const sourceNode = audioContext.createMediaStreamSource(source_stream);
@@ -438,8 +434,6 @@ function SightReader() {
             if (!volume_meter) {
                 volume_meter = createAudioMeter(audioContext);
                 const mediaStreamSource = audioContext.createMediaStreamSource(source_stream);
-                // Now that createAudioMeter returns an AudioNode (the processor),
-                // this connection should work without errors.
                 mediaStreamSource.connect(volume_meter);
             }
         }
@@ -451,7 +445,6 @@ function SightReader() {
         }
         function start_mic() {
             recording = true;
-            // Resume AudioContext on user gesture.
             audioContext.resume();
             start_volume_meter();
             start_pitch_detector();
@@ -488,7 +481,6 @@ function SightReader() {
                 expected_midi_number = midiPitch.pitch;
                 update_current_note_display();
             } else {
-                // End of the piece.
                 stop_note_checker();
                 const score = Math.round((notes_checked_correct_count / notes_checked_count) * 100);
                 report_status('Scored ' + score + '.');
@@ -500,7 +492,6 @@ function SightReader() {
                     if (current_score_stats && current_score_stats.mean_score && score >= current_score_stats.mean_score) {
                         increment_playlist();
                     }
-                    // Optionally auto–restart here.
                 }
             }
         }
@@ -527,9 +518,8 @@ function SightReader() {
             $(notationRef.current).css('opacity', 1);
         }
         function stop(verbose = true) {
-            if (countdown >= 0) {
-                countdown = -1;
-                recording = true;
+            if (verbose && recording) {
+                // If a countdown was in progress, cancel it.
             }
             if (!recording) return;
             $(notationRef.current).css('opacity', 0.5);
@@ -538,7 +528,6 @@ function SightReader() {
             current_midi_number = 0;
             stop_note_checker();
             mark_start_button_as_stopped();
-            // Removed legacy call: ABCJS.midi.stopPlaying();
             if (timer) timer.stop();
             if (synth) synth.stop();
             if (verbose) report_status('Stopped.');
@@ -550,7 +539,6 @@ function SightReader() {
             notes_checked_count = 0;
             update_score_display();
             stop();
-            // Wrap legacy call in condition:
             if (ABCJS.midi && ABCJS.midi.restartPlaying) {
                 ABCJS.midi.restartPlaying();
             }
@@ -570,8 +558,6 @@ function SightReader() {
                 },
             });
         }
-        // (scroll_left and scroll_right functions omitted for brevity)
-
         // ––––– Event Listeners Setup –––––
         if (devicesRef.current) {
             devicesRef.current.addEventListener('change', async (e) => {
@@ -656,7 +642,6 @@ function SightReader() {
                     report_status('Select a file before starting.');
                     return;
                 }
-                // Resume the AudioContext if it is still suspended.
                 audioContext.resume();
                 if (recording) {
                     stop();
@@ -717,14 +702,12 @@ function SightReader() {
                 file_select_change();
             }
         });
-        // Cleanup on component unmount.
         return () => {
             if (note_checker_id) clearInterval(note_checker_id);
             if (pitch_getter_id) clearInterval(pitch_getter_id);
         };
     }, []);
 
-    // ––––– Render the JSX –––––
     return (
         <div className="container">
             <h3>ABC Sightreader</h3>
@@ -750,48 +733,42 @@ function SightReader() {
                         <label htmlFor="file">File:</label>
                         <select id="file" ref={fileSelectRef}>
                             <option value="">---Custom ABC---</option>
-                           <option value="cecilio-lesson1-open-strings.abc">cecilio-lesson1-open-strings.abc</option>
-                    <option value="cecilio-lesson2-first-position.abc">cecilio-lesson2-first-position.abc</option>
-                    <option value="cecilio-lesson2-twinkle-twinkle-little-star.abc">
-                        cecilio-lesson2-twinkle-twinkle-little-star.abc</option>
-                    <option value="cecilio-lesson3-exercise-1.abc">cecilio-lesson3-exercise-1.abc</option>
-                    <option value="cecilio-lesson3-exercise-2.abc">cecilio-lesson3-exercise-2.abc</option>
-                    <option value="cecilio-lesson3-exercise-3.abc">cecilio-lesson3-exercise-3.abc</option>
-                    <option value="cecilio-lesson3-exercise-4.abc">cecilio-lesson3-exercise-4.abc</option>
-                    <option value="cecilio-lesson3-mary-had-a-little-lamb.abc">
-                        cecilio-lesson3-mary-had-a-little-lamb.abc</option>
-                    <option value="cecilio-lesson3-jingle-bells.abc">cecilio-lesson3-jingle-bells.abc</option>
-                    <option value="cecilio-lesson4-camptown-races.abc">cecilio-lesson4-camptown-races.abc</option>
-                    <option value="cecilio-lesson4-lightly-row.abc">cecilio-lesson4-lightly-row.abc</option>
-                    <option value="cecilio-lesson4-russian-dance-tune.abc">cecilio-lesson4-russian-dance-tune.abc
-                    </option>
-                    <option value="cecilio-lesson5-eighth-notes.abc">cecilio-lesson5-eighth-notes.abc</option>
-                    <option value="cecilio-lesson5-hungarian-folk-song-1.abc">cecilio-lesson5-hungarian-folk-song-1.abc
-                    </option>
-                    <option value="cecilio-lesson5-the-old-gray-goose.abc">cecilio-lesson5-the-old-gray-goose.abc
-                    </option>
-                    <option value="cecilio-lesson6-first-position-d-string.abc">
-                        cecilio-lesson6-first-position-d-string.abc</option>
-                    <option value="cecilio-lesson6-ode-to-joy.abc">cecilio-lesson6-ode-to-joy.abc</option>
-                    <option value="cecilio-lesson6-scherzando.abc">cecilio-lesson6-scherzando.abc</option>
-                    <option value="cecilio-lesson7-gavotte.abc">cecilio-lesson7-gavotte.abc</option>
-                    <option value="cecilio-lesson7-country-gardens.abc">cecilio-lesson7-country-gardens.abc</option>
-                    <option value="cecilio-lesson7-can-can.abc">cecilio-lesson7-can-can.abc</option>
-                    <option value="cecilio-lesson8-largo.abc">cecilio-lesson8-largo.abc</option>
-                    <option value="cecilio-lesson8-dixie.abc">cecilio-lesson8-dixie.abc</option>
-                    <option value="hot-cross-buns.abc">hot-cross-buns.abc</option>
-                    <option value="lesson1-open-string-exercise-1.abc">lesson1-open-string-exercise-1.abc</option>
-                    <option value="lesson1-open-string-exercise-2.abc">lesson1-open-string-exercise-2.abc</option>
-                    <option value="lesson1-open-string-exercise-3.abc">lesson1-open-string-exercise-3.abc</option>
-                    <option value="lesson1-open-string-exercise-4.abc">lesson1-open-string-exercise-4.abc</option>
-                    <option value="lesson1-open-string-exercise-5.abc">lesson1-open-string-exercise-5.abc</option>
-                    <option value="lesson1-open-string-exercise-6.abc">lesson1-open-string-exercise-6.abc</option>
-                    <option value="lesson2-1st-finger-exercise-1.abc">lesson2-1st-finger-exercise-1.abc</option>
-                    <option value="lesson2-1st-finger-exercise-2.abc">lesson2-1st-finger-exercise-2.abc</option>
-                    <option value="lesson2-1st-finger-exercise-3.abc">lesson2-1st-finger-exercise-3.abc</option>
-                    <option value="lesson2-1st-finger-exercise-4.abc">lesson2-1st-finger-exercise-4.abc</option>
-                    <option value="lesson2-1st-finger-exercise-5.abc">lesson2-1st-finger-exercise-5.abc</option>
-                    <option value="lesson2-1st-finger-exercise-6.abc">lesson2-1st-finger-exercise-6.abc</option>
+                            <option value="cecilio-lesson1-open-strings.abc">cecilio-lesson1-open-strings.abc</option>
+                            <option value="cecilio-lesson2-first-position.abc">cecilio-lesson2-first-position.abc</option>
+                            <option value="cecilio-lesson2-twinkle-twinkle-little-star.abc">cecilio-lesson2-twinkle-twinkle-little-star.abc</option>
+                            <option value="cecilio-lesson3-exercise-1.abc">cecilio-lesson3-exercise-1.abc</option>
+                            <option value="cecilio-lesson3-exercise-2.abc">cecilio-lesson3-exercise-2.abc</option>
+                            <option value="cecilio-lesson3-exercise-3.abc">cecilio-lesson3-exercise-3.abc</option>
+                            <option value="cecilio-lesson3-exercise-4.abc">cecilio-lesson3-exercise-4.abc</option>
+                            <option value="cecilio-lesson3-mary-had-a-little-lamb.abc">cecilio-lesson3-mary-had-a-little-lamb.abc</option>
+                            <option value="cecilio-lesson3-jingle-bells.abc">cecilio-lesson3-jingle-bells.abc</option>
+                            <option value="cecilio-lesson4-camptown-races.abc">cecilio-lesson4-camptown-races.abc</option>
+                            <option value="cecilio-lesson4-lightly-row.abc">cecilio-lesson4-lightly-row.abc</option>
+                            <option value="cecilio-lesson4-russian-dance-tune.abc">cecilio-lesson4-russian-dance-tune.abc</option>
+                            <option value="cecilio-lesson5-eighth-notes.abc">cecilio-lesson5-eighth-notes.abc</option>
+                            <option value="cecilio-lesson5-hungarian-folk-song-1.abc">cecilio-lesson5-hungarian-folk-song-1.abc</option>
+                            <option value="cecilio-lesson5-the-old-gray-goose.abc">cecilio-lesson5-the-old-gray-goose.abc</option>
+                            <option value="cecilio-lesson6-first-position-d-string.abc">cecilio-lesson6-first-position-d-string.abc</option>
+                            <option value="cecilio-lesson6-ode-to-joy.abc">cecilio-lesson6-ode-to-joy.abc</option>
+                            <option value="cecilio-lesson6-scherzando.abc">cecilio-lesson6-scherzando.abc</option>
+                            <option value="cecilio-lesson7-gavotte.abc">cecilio-lesson7-gavotte.abc</option>
+                            <option value="cecilio-lesson7-country-gardens.abc">cecilio-lesson7-country-gardens.abc</option>
+                            <option value="cecilio-lesson7-can-can.abc">cecilio-lesson7-can-can.abc</option>
+                            <option value="cecilio-lesson8-largo.abc">cecilio-lesson8-largo.abc</option>
+                            <option value="cecilio-lesson8-dixie.abc">cecilio-lesson8-dixie.abc</option>
+                            <option value="hot-cross-buns.abc">hot-cross-buns.abc</option>
+                            <option value="lesson1-open-string-exercise-1.abc">lesson1-open-string-exercise-1.abc</option>
+                            <option value="lesson1-open-string-exercise-2.abc">lesson1-open-string-exercise-2.abc</option>
+                            <option value="lesson1-open-string-exercise-3.abc">lesson1-open-string-exercise-3.abc</option>
+                            <option value="lesson1-open-string-exercise-4.abc">lesson1-open-string-exercise-4.abc</option>
+                            <option value="lesson1-open-string-exercise-5.abc">lesson1-open-string-exercise-5.abc</option>
+                            <option value="lesson1-open-string-exercise-6.abc">lesson1-open-string-exercise-6.abc</option>
+                            <option value="lesson2-1st-finger-exercise-1.abc">lesson2-1st-finger-exercise-1.abc</option>
+                            <option value="lesson2-1st-finger-exercise-2.abc">lesson2-1st-finger-exercise-2.abc</option>
+                            <option value="lesson2-1st-finger-exercise-3.abc">lesson2-1st-finger-exercise-3.abc</option>
+                            <option value="lesson2-1st-finger-exercise-4.abc">lesson2-1st-finger-exercise-4.abc</option>
+                            <option value="lesson2-1st-finger-exercise-5.abc">lesson2-1st-finger-exercise-5.abc</option>
+                            <option value="lesson2-1st-finger-exercise-6.abc">lesson2-1st-finger-exercise-6.abc</option>
                         </select>
                         <label htmlFor="tempo">Tempo:</label>
                         <select id="tempo" ref={tempoSelectRef}>
