@@ -94,17 +94,17 @@ function check_note() {
     if (isNaN(expected_midi_number)) {
         expected_midi_number = 0;
     }
-    if(is_ignore_duration()){
+    if (is_ignore_duration()) {
         // If we're ignoring duration, then only increase our correct note count if the note is met at least once.
-        if(!new_note_checked){
+        if (!new_note_checked) {
             new_note_checked = true;
             notes_checked_count += 1;
         }
-        if(!new_note_checked_and_found && expected_midi_number == current_midi_number){
+        if (!new_note_checked_and_found && expected_midi_number == current_midi_number) {
             new_note_checked_and_found = true;
             notes_checked_correct_count += 1;
         }
-    }else{
+    } else {
         // Otherwise, assume the note must be met throughout the entire duration.
         notes_checked_correct_count += expected_midi_number == current_midi_number;
         notes_checked_count += 1;
@@ -205,15 +205,16 @@ function mark_start_button_as_stopped() {
 function begin_countdown() {
     mark_start_button_as_started();
     recording = true;
-    countdown = tunebook[0].getBeatsPerMeasure() + 1;
+    countdown = tunebook[0].getBeatsPerMeasure();
     refresh_countdown();
 }
 
 function refresh_countdown() {
     countdown -= 1;
     if (countdown > 0) {
+        //countdown_display.textContent = tunebook[0].getBeatsPerMeasure() - countdown + 1;
         countdown_display.textContent = tunebook[0].getBeatsPerMeasure() - countdown + 1;
-        $('#count-down').css({'font-size': '15em', 'opacity' : 1.0}).show().animate({opacity: '0'}, milliseconds_per_beat(current_qpm), 'swing', refresh_countdown);
+        $('#count-down').css({ 'font-size': '15em', 'opacity': 1.0 }).show().animate({ opacity: '0' }, milliseconds_per_beat(current_qpm), 'swing', refresh_countdown);
     } else {
         $('#count-down').hide();
         if (countdown == 0) {
@@ -284,7 +285,7 @@ function load_abc_textarea() {
     load_abc(data);
     $(file_select.id).removeAttr('disabled');
 
-    if(tunebook && tunebook[0].lines.length > 0) {
+    if (tunebook && tunebook[0].lines.length > 0) {
         loaded_abc_filename = tunebook[0].metaText.title;
         report_status('File loaded. Press start to play.');
         update_score_stats_display();
@@ -330,7 +331,7 @@ window.noteFromPitch = noteFromPitch;
 
 function start_pitch_detector() {
     audioContext.resume();
-    detectPitch = new Pitchfinder.YIN({sampleRate : audioContext.sampleRate});
+    detectPitch = new Pitchfinder.YIN({ sampleRate: audioContext.sampleRate });
     var sourceNode = audioContext.createMediaStreamSource(source_stream);
     var analyser = audioContext.createAnalyser();
     sourceNode.connect(analyser);
@@ -709,13 +710,13 @@ ignore_duration.addEventListener('click', async (e) => {
 });
 
 profile_select.addEventListener('change', async (e) => {
-    if(e.target.value == 'new'){
-        $('#'+profile_select.id).hide();
-        $('#'+create_new_profile_input.id).show();
-    }else{
+    if (e.target.value == 'new') {
+        $('#' + profile_select.id).hide();
+        $('#' + create_new_profile_input.id).show();
+    } else {
         Cookies.set(profile_select.id, profile_select.value);
-        $('#'+profile_select.id).show();
-        $('#'+create_new_profile_input.id).hide();
+        $('#' + profile_select.id).show();
+        $('#' + create_new_profile_input.id).hide();
         update_score_stats_display();
     }
 });
@@ -725,19 +726,19 @@ create_new_profile_input.addEventListener('keydown', async (e) => {
     if (event.keyCode == 27) {
         // Escape.
         create_new_profile_input.value = '';
-        $('#'+profile_select.id).show();
-        $('#'+create_new_profile_input.id).hide();
-    }else if (event.keyCode == 13) {
+        $('#' + profile_select.id).show();
+        $('#' + create_new_profile_input.id).hide();
+    } else if (event.keyCode == 13) {
         $.ajax({
-            url: '/profile/save/'+create_new_profile_input.value,
+            url: '/profile/save/' + create_new_profile_input.value,
             dataType: 'json',
             success: function (data, textStatus, jqXHR) {
                 console.log('Success saving profile!');
-                $('#'+profile_select.id).append('<option value="'+create_new_profile_input.value+'">'+create_new_profile_input.value+'</option>');
+                $('#' + profile_select.id).append('<option value="' + create_new_profile_input.value + '">' + create_new_profile_input.value + '</option>');
                 profile_select.value = create_new_profile_input.value;
-                $('#'+profile_select.id).show();
+                $('#' + profile_select.id).show();
                 create_new_profile_input.value = '';
-                $('#'+create_new_profile_input.id).hide();
+                $('#' + create_new_profile_input.id).hide();
             },
             error: function (jqXHR, textStatus, errorThrown) {
                 console.log('Error saving profile!');
@@ -768,11 +769,11 @@ devices_select.addEventListener('change', async (e) => {
 });
 
 navigator.getUserMedia = (navigator.getUserMedia ||
-                       navigator.webkitGetUserMedia ||
-                       navigator.mozGetUserMedia ||
-                       navigator.msGetUserMedia);
+    navigator.webkitGetUserMedia ||
+    navigator.mozGetUserMedia ||
+    navigator.msGetUserMedia);
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    navigator.mediaDevices.getUserMedia({audio: true}).then((stream) => {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
         navigator.mediaDevices.enumerateDevices().then((devices) => {
             const fragment = document.createDocumentFragment();
             if (devices) {
@@ -793,12 +794,12 @@ if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             devices_select.dispatchEvent(new Event('change'));
         });
     });
-}else{
+} else {
     $('#message-model .modal-body').html('This browser is not supported.');
     $('#message-model').modal('show');
 }
 
-function _file_select_change(){
+function _file_select_change() {
     var filename = file_select.value;
     report_status('Loading file ' + filename + '.');
     clear_playlist();
@@ -806,7 +807,7 @@ function _file_select_change(){
     if (filename.endsWith(ABC_EXT)) {
         $('#abc-textarea-container').hide();
         load_abc_file(filename);
-    } else if(filename.endsWith(PLS_EXT)) {
+    } else if (filename.endsWith(PLS_EXT)) {
         $('#abc-textarea-container').hide();
         load_playlist_file(filename);
     } else {
@@ -821,7 +822,7 @@ file_select.addEventListener('change', () => {
     _file_select_change();
 });
 
-function abc_textarea_change(){
+function abc_textarea_change() {
     load_abc_textarea();
 }
 
