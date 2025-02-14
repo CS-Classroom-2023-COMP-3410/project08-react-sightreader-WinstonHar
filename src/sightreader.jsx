@@ -137,8 +137,8 @@ function SightReader() {
             if (currentScoreRef.current) {
                 currentScoreRef.current.textContent = notes_checked_count
                     ? `${notes_checked_correct_count}/${notes_checked_count} = ${Math.round(
-                          (notes_checked_correct_count / notes_checked_count) * 100
-                      )}%`
+                        (notes_checked_correct_count / notes_checked_count) * 100
+                    )}%`
                     : '-';
             }
         }
@@ -194,7 +194,7 @@ function SightReader() {
             mark_start_button_as_started();
             recording = true;
             let countdownVal = 1; // start at 1 second
-        
+
             function animateCountdown() {
                 if (countdownVal < 6) {
                     if (countdownRef.current) {
@@ -215,7 +215,7 @@ function SightReader() {
                     start();
                 }
             }
-        
+
             animateCountdown();
         }
 
@@ -224,7 +224,7 @@ function SightReader() {
             const HEADER_KEYS_TO_IGNORE = new Set(['T', 'C', 'Z', 'S', 'N', 'G', 'O', 'H', 'I', 'P', 'W', 'F', 'B']);
             let headers = [];
             let notes = [];
-            
+
             let lines = data.split('\n');
             for (let line of lines) {
                 line = line.trim();
@@ -232,7 +232,7 @@ function SightReader() {
                     console.debug('Ignoring comment:', line);
                     continue;
                 }
-                
+
                 if (line.length >= 2 && line[1] === ':' && /^[A-Za-z]$/.test(line[0])) {
                     if (HEADER_KEYS_TO_IGNORE.has(line[0].toUpperCase())) {
                         console.debug('Ignoring header:', line);
@@ -245,11 +245,12 @@ function SightReader() {
                     notes.push(line);
                 }
             }
-            
+
             return headers.join('\n') + '\n' + notes.join('\n');
         }
 
         // ––––– ABC and Playlist Loading Functions –––––
+
         function load_abc(abc_string) {
             let qpm = null;
             let abc_string_raw = abc_string;
@@ -280,6 +281,7 @@ function SightReader() {
                 synth = new ABCJS.synth.CreateSynth();
             }
             if (startButtonRef.current) startButtonRef.current.disabled = true;
+
             synth
                 .init({
                     audioContext: audioContext,
@@ -287,16 +289,22 @@ function SightReader() {
                     millisecondsPerMeasure: milliseconds_per_measure(current_qpm, tunebook[0]),
                 })
                 .then(() => {
-                    synth
-                        .prime()
-                        .then(() => {
-                            if (startButtonRef.current) startButtonRef.current.disabled = false;
-                        })
-                        .catch((error) => {
-                            console.error("Synth prime error:", error);
-                        });
+                    if (synth) {
+                        synth
+                            .prime()
+                            .then(() => {
+                                if (startButtonRef.current) startButtonRef.current.disabled = false;
+                            })
+                            .catch((error) => {
+                                console.error("Synth prime error:", error);
+                            });
+                    }
+                })
+                .catch((error) => {
+                    console.error("Synth init error:", error);
                 });
         }
+
 
         // Updated load_abc_file to include preprocessing
         function load_abc_file(filename) {
@@ -313,10 +321,10 @@ function SightReader() {
                     original_loaded_abc = data;
                     loaded_abc_filename = filename;
                     if (loadedFilenameRef.current) loadedFilenameRef.current.textContent = filename;
-                    
+
                     // Preprocess the ABC data before loading
                     const processedData = preprocess_abc_data(data);
-                    
+
                     if (abcTextareaRef.current) $(abcTextareaRef.current).val(processedData);
                     load_abc(processedData);
                     $(fileSelectRef.current).removeAttr('disabled');
